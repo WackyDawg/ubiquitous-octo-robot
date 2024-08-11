@@ -45,7 +45,7 @@ function delay(time) {
 
 (async () => {
   // Launch a new browser instance
-  const browser = await puppeteer.launch({ headless: false });
+  const browser = await puppeteer.launch({ headless: true });
 
   // Open a new page
   const page = await browser.newPage();
