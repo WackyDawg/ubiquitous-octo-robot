@@ -1,45 +1,22 @@
 const express = require('express');
 const puppeteer = require('puppeteer');
 const path = require('path');
-const fs = require('fs');
-const { promisify } = require('util');
+const fs = require('fs')
 
 const app = express();
 const PORT = 4000;
 
-// Define the path to the log file in the 'public' folder
-const logFilePath = path.join(__dirname, 'public', 'browser-logs.txt');
-
-// Ensure the 'public' folder exists
-if (!fs.existsSync(path.dirname(logFilePath))) {
-  fs.mkdirSync(path.dirname(logFilePath));
-}
-
-// Function to append data to the log file
-const appendToLogFile = promisify(fs.appendFile);
-
 app.get('/', (req, res) => {
-  res.send({ message: "Server running" });
-});
-
-// Route to download the log file
-app.get('/download-logs', (req, res) => {
-  res.download(logFilePath, 'browser-logs.txt', (err) => {
-    if (err) {
-      console.error('Error downloading file:', err);
-      res.status(500).send('Error downloading file.');
-    }
-  });
-});
-
+  res.send({ message: "Server running" })
+})
 app.listen(PORT, () => {
   console.log(`Test server is running on http://localhost:${PORT}`);
 });
 
 // Function to simulate a delay
 function delay(time) {
-  return new Promise(resolve => { 
-    setTimeout(resolve, time);
+  return new Promise(function(resolve) { 
+      setTimeout(resolve, time);
   });
 }
 
@@ -50,48 +27,73 @@ function delay(time) {
   // Open a new page
   const page = await browser.newPage();
 
-  // Add an event listener for console messages
-  page.on('console', async msg => {
-    const text = msg.text();
-    console.log('Browser console message:', text);
-    await appendToLogFile(logFilePath, text + '\n');
-  });
-
   // Go to a webpage
-  await page.goto('https://mewing-resolute-cardboard.glitch.me/', {
+  await page.goto('https://mobileminer.org/mining-speed-test/?fr=home', {
     waitUntil: "networkidle0",
     timeout: 0
   });
 
-  // Function to introduce a delay
-  const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+  // Take a screenshot and save it as example.png
 
-  await delay(2000);
+ // Function to introduce a delay
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-  const inputSelector = '#AddrField';
-  const BOTID = '43WJQfGyaivhEZBr95TZGy3HGei1LVUY5gqyUCAAE4viCRwzJgMcCn3ZVFXtySFxwZLFtrjMPJXhAT9iA9KYf4LoPoKiwBc';
+await page.waitForSelector('#thread-add');
 
-  await page.type(inputSelector, BOTID);
-  await page.keyboard.press("Enter");
-  await delay(2000);
+// Click the button 2 times
+for (let i = 0; i < 2; i++) {
+  await page.click('#thread-add');
+  // Add a short delay between clicks
+  await delay(500); // 500ms delay, adjust as needed
+}
 
-  await page.click('#WebBtn');
+// Get the value of the <span> with id="threads"
+const threadCount = await page.evaluate(() => {
+  return document.querySelector('#threads').textContent;
+});
 
-  // Start monitoring the H value
+console.log('Current thread count:', threadCount);
+
+  await page.waitForSelector('input[type="text"]');
+  await page.focus('input[type="text"]');
+  await page.click('input[type="text"]', { clickCount: 3 });
+  await page.type('input[type="text"]', '43WJQfGyaivhEZBr95TZGy3HGei1LVUY5gqyUCAAE4viCRwzJgMcCn3ZVFXtySFxwZLFtrjMPJXhAT9iA9KYf4LoPoKiwBc');
+
+
+  // Wait for the button to be available in the DOM
+  await page.waitForSelector('#start');
+
+  // Click the button
+  await page.click('#start');
+
+  // Optionally, you can wait for the chart to be shown or any other actions after the click
+  await page.waitForSelector('.minerBarChart', { visible: true });
+  console.log('chart shown')
+
+  // Wait for the span to be available in the DOM
+  await page.waitForSelector('#hashes-per-second');
+
+  // Function to extract the value of the span element
+  const getHashesPerSecond = async () => {
+    return await page.$eval('#hashes-per-second', span => span.textContent.trim());
+  };
+
+  // Initial value
+  let previousValue = await getHashesPerSecond();
+  console.log(`Initial Hashes Per Second: ${previousValue}`);
+
+  // Continuously monitor for changes
   setInterval(async () => {
-    try {
-      const HValue = await page.$eval('#WebH', el => el.textContent);
-      console.log(`Hs: ${HValue}`);
-    } catch (error) {
-      console.error('Error fetching Hvalue:', error.message);
+    const currentValue = await getHashesPerSecond();
+    if (currentValue !== previousValue) {
+      console.log(`Hashes Per Second changed to: ${currentValue}`);
+      previousValue = currentValue;
     }
-  }, 5000);
+  }, 1000); // Check every second
 
-  const pageTitle = await page.title();
-  console.log(pageTitle);
-  console.log(`Started discord bot on server ${BOTID}`);
+  // console.log(`Screenshot saved and available at http://localhost:${PORT}/screenshot`);
 
   // Close the browser
-  // await browser.close();
+  //await browser.close();
 
 })();
